@@ -135,6 +135,26 @@ The Telegram message contains: timestamp, violation type, valence, suspicion sco
 
 Force one with `--backend` or `FACE_BACKEND=` in `.env`.
 
+### Verified runtime
+
+The repository has been verified with Python 3.12 using the current MediaPipe Tasks backend. With `--backend auto`, the application tries the available backends and normally selects **MediaPipe FaceLandmarker (Tasks API)**. On the first run it downloads `models/face_landmarker.task`; subsequent runs use the local model.
+
+The legacy MediaPipe `solutions` backend may not be available with newer MediaPipe releases. This is expected: use `--backend auto` or `--backend tasks` for current installations. The application still logs violations locally when Telegram is not configured.
+
+The live pipeline requires a working webcam. If the default camera cannot be opened, try another index:
+
+```bash
+python main.py --camera 1
+```
+
+For a terminal-only run without opening a video window:
+
+```bash
+python main.py --no-window --backend tasks
+```
+
+This mode still requires a webcam; `--no-window` only disables the display window.
+
 ---
 
 ## Configuration
@@ -167,6 +187,8 @@ Violation snapshots are saved in `snapshots/` (git-ignored).
 | `Cannot open camera index 0` | close Zoom/Teams/browser tabs using the camera, try `--camera 1`, allow camera access for your terminal in OS privacy settings |
 | `No matching distribution found for mediapipe` | use Python 3.9 - 3.12 |
 | `Back-end 'tasks' is not available: model file not available` | no internet on first run - download `face_landmarker.task` from the MediaPipe model page once and place it in `models/` (or set `FACE_LANDMARKER_MODEL_PATH`) |
+| `Back-end 'legacy' is not available: module 'mediapipe' has no attribute 'solutions'` | use the current Tasks backend with `python main.py --backend tasks` or leave the backend set to `auto` |
+| `No face detection back-end could be started` | use `--backend auto` or `--backend tasks`; confirm dependencies were installed with `pip install -r requirements.txt` |
 | Head pose looks wrong / always "away" | your camera image may be mirrored - set `FLIP_FRAME=true`; press `c` to recalibrate |
 | Too many false "looking away" alerts | raise `YAW_THRESHOLD_DEG` / `PITCH_THRESHOLD_DEG` or `LOOK_AWAY_SECONDS` |
 | Telegram `rejected (HTTP 401)` | wrong token - recreate it with @BotFather |
@@ -180,5 +202,4 @@ Violation snapshots are saved in `snapshots/` (git-ignored).
 Automated proctoring produces **false positives** (poor lighting, glasses, a camera at an odd angle) and its emotion/valence estimate is heuristic. Treat alerts as *flags for a human reviewer*, never as proof of misconduct, and always obtain the candidate's informed consent before recording or analysing their video.
 
 Built for **Hackathon Problem Statement ID 102 - AI Proctoring & Behaviour Analysis System.**
-
 
