@@ -159,39 +159,6 @@ Violation snapshots are saved in `snapshots/` (git-ignored).
 
 ---
 
-## Upload to GitHub (exact commands)
-
-1. Create an **empty** repository on GitHub (no README / .gitignore / licence), e.g. `ai-proctoring-102`.
-2. In the project folder run:
-
-```bash
-git init
-git add .
-git status                      # make sure .env is NOT listed (it is git-ignored)
-git commit -m "Initial commit: AI Proctoring & Behaviour Analysis System (Problem ID 102)"
-git branch -M main
-git remote add origin https://github.com/<your-username>/ai-proctoring-102.git
-git push -u origin main
-```
-
-Later updates:
-
-```bash
-git add .
-git commit -m "Describe your change"
-git push
-```
-
-If Git asks for a password, use a **Personal Access Token** (GitHub -> Settings -> Developer settings -> Tokens) or sign in with the GitHub CLI (`gh auth login`).
-**Never commit `.env`** - if you ever do, revoke the bot token in @BotFather (`/revoke`) immediately.
-
-### Re-create the zip archive
-
-```bash
-python package_project.py       # -> proctoring_ai_102.zip
-```
-
----
 
 ## Troubleshooting
 
