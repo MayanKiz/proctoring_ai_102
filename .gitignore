@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Runtime output
+snapshots/
+models/*.task
+proctoring_ai_102.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
