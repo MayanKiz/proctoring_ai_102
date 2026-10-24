@@ -1,205 +1,234 @@
 # AI Proctoring & Behaviour Analysis System
 
-**Hackathon Problem Statement ID 102** - real-time webcam proctoring with live terminal logging and instant **Telegram Bot** alerts (with a snapshot of every violation).
+This project is a real-time webcam proctoring and behaviour analysis tool built for hackathon problem statement ID 102. It monitors face presence, head pose, gaze direction, suspicious movement, and other behavioural indicators using a local webcam. When a violation is detected, it logs it in the terminal and can send an instant Telegram alert with a snapshot.
 
-Runs 100 % locally: `python main.py`
-
----
+It runs fully locally with Python and does not require any cloud-based processing.
 
 ## Features
 
-| Capability | How it works | Alert text |
-|---|---|---|
-| **Face presence** | face tracker finds no face for > 1 s | `NO FACE DETECTED` |
-| **Multiple people** | more than one face for > 0.5 s | `MULTIPLE FACES DETECTED - CHEATING ALERT` |
-| **Head pose / gaze** | `solvePnP` head pose (yaw / pitch) vs. the candidate's own calibrated baseline; Left / Right / Up / Down away for > 2 s | `LOOKING AWAY FROM SCREEN (LEFT)` |
-| **Behaviour & valence** | eye / mouth / brow geometry + head-motion analysis -> **Focused**, **Distracted**, **Suspicious Movement**, valence (-1 .. +1), suspicion (0-100) and focus (0-100) scores | shown live in terminal + video overlay |
-| **Telegram alerts** | `requests.post` to the Bot API: `sendPhoto` with timestamp, violation type, valence and suspicion score; automatic `sendMessage` fallback | - |
-| **Anti-spam cooldown** | 5 s per violation type (configurable); sending happens on a background thread so video never lags | - |
+- Face presence detection
+- Multiple face detection
+- Head pose and gaze tracking
+- Suspicious movement detection
+- Behaviour scoring and valence analysis
+- Live terminal logging
+- Local snapshot saving
+- Telegram alerts with image attachment
+- Cooldown-based spam prevention
 
----
+## Project Structure
 
-## Architecture
-
-```mermaid
-flowchart LR
-    CAM[Webcam<br/>OpenCV VideoCapture] --> DET[Face back-end<br/>MediaPipe FaceMesh / FaceLandmarker<br/>Haar fallback]
-    DET --> FEAT[Features<br/>head pose via solvePnP<br/>EAR / MAR / brow / smile]
-    FEAT --> ANA[BehaviourAnalyzer<br/>baseline calibration, timers,<br/>valence + suspicion scores]
-    ANA --> LOG[TerminalLogger<br/>live coloured status]
-    ANA --> OVR[Overlay + snapshot<br/>cv2.imwrite]
-    ANA --> ALM[AlertManager<br/>5 s cooldown per type]
-    OVR --> ALM
-    ALM --> Q[(Queue)]
-    Q --> TG[TelegramNotifier thread<br/>sendPhoto / sendMessage]
-    TG --> BOT[Telegram Bot -> proctor's phone]
-```
-
-```
- Webcam -> Face detection -> Head pose + facial features -> Behaviour analysis -> Terminal log
-                                                                  |
-                                                                  +--> violation? -> cooldown -> snapshot -> Telegram Bot
-```
-
-### Project structure
-
-```
+```text
 proctoring_ai_102/
-|-- main.py              # capture + detection + analysis + terminal logger + Telegram sender
-|-- config.py            # settings (reads secrets from .env)
-|-- .env.example         # template for TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
-|-- requirements.txt
-|-- .gitignore
-|-- package_project.py   # builds proctoring_ai_102.zip
-`-- README.md
+|-- main.py              # main application logic
+|-- config.py            # app configuration and environment settings
+|-- .env.example         # sample environment variables
+|-- requirements.txt     # Python dependencies
+|-- .gitignore           # ignore local secrets and generated files
+|-- package_project.py    # script to package the project
+|-- README.md            # project documentation
+|-- snapshots/           # generated violation images (created at runtime)
+`-- models/              # optional MediaPipe model files (downloaded at runtime if needed)
 ```
 
----
+## Requirements
 
-## Quick start
+- Python 3.9 to 3.12
+- Webcam
+- Internet access (only required once for MediaPipe model download if needed)
+- Telegram bot token and chat ID for alerts (optional but recommended)
 
-> Requires **Python 3.9 - 3.12** (MediaPipe ships wheels for these) and a webcam.
+## Quick Start
+
+### 1. Clone the repository
 
 ```bash
-# 1. (recommended) virtual environment
+git clone https://github.com/MayanKiz/proctoring_ai_102.git
+cd proctoring_ai_102
+```
+
+### 2. Create a virtual environment
+
+#### macOS / Linux
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+#### Windows
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate            # Windows:  .venv\Scripts\activate
+.venv\Scripts\activate
+```
 
-# 2. install dependencies
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
 
-# 3. configure Telegram
-cp .env.example .env                 # Windows:  copy .env.example .env
-#    then edit .env and paste your token + chat id (see below)
+### 4. Create your environment file
 
-# 4. check the bot works
+```bash
+cp .env.example .env
+```
+
+Windows:
+
+```powershell
+copy .env.example .env
+```
+
+Then open `.env` and fill in your Telegram values:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+```
+
+If Telegram credentials are missing, the application still works in local mode and logs violations to the terminal, but it will skip Telegram alerts.
+
+### 5. Test Telegram integration
+
+```bash
 python main.py --test-telegram
+```
 
-# 5. run the proctor
+### 6. Run the application
+
+```bash
 python main.py
 ```
 
-On first start the system **calibrates for ~1 second** - look straight at the screen. Press **`c`** in the video window any time to recalibrate, **`q`** / **ESC** to quit (Ctrl+C also works).
+On first run, the system calibrates for about 1 second. Look directly at the screen during calibration. Use:
 
-### Telegram setup (2 minutes)
+- `c` to recalibrate
+- `q` or `Esc` to quit
+- `Ctrl + C` to stop the program
 
-1. In Telegram open **@BotFather**, send `/newbot`, follow the prompts and copy the **token**.
-2. Open a chat with your new bot and send it any message (e.g. "hi").
-3. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser and copy the number in `"chat":{"id": ... }` - that is your **chat id**. (For a group: add the bot to the group, send a message, and use the negative id shown.)
-4. Put both values in `.env`:
-   ```
-   TELEGRAM_BOT_TOKEN=123456789:AAExampleToken
-   TELEGRAM_CHAT_ID=987654321
-   ```
+## Telegram Setup
 
-If the credentials are missing the system still runs and logs every violation locally; it just skips Telegram.
+1. Open Telegram and message `@BotFather`.
+2. Send `/newbot` and follow the prompts.
+3. Copy the bot token provided by BotFather.
+4. Start a chat with the new bot and send any message like `hi`.
+5. Open this URL in a browser:
 
-### Command-line options
-
+```text
+https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
 ```
+
+6. Find the `chat` object and copy the `id` value.
+7. Add both values to your `.env` file:
+
+```env
+TELEGRAM_BOT_TOKEN=123456789:AAExampleToken
+TELEGRAM_CHAT_ID=987654321
+```
+
+## Command Line Options
+
+```bash
 python main.py [--camera N] [--no-window] [--backend auto|legacy|tasks|haar] [--test-telegram]
 ```
 
----
+Examples:
 
-## What the terminal shows
-
-```
-[14:03:21] FOCUSED              | faces=1 | gaze=CENTER yaw=  +1.8 pitch=  -0.9 | valence=+0.04 (Neutral) | suspicion=  3/100 | focus= 97/100
-[14:03:22] DISTRACTED           | faces=1 | gaze=LEFT   yaw= -31.2 pitch=  +2.0 | valence=+0.02 (Neutral) | suspicion= 51/100 | focus= 49/100
-[14:03:24] LOOKING AWAY         | faces=1 | gaze=LEFT   yaw= -33.0 pitch=  +1.1 | valence=-0.03 (Neutral) | suspicion= 72/100 | focus= 28/100  <<< LOOKING AWAY FROM SCREEN (LEFT)
-[14:03:24] [ALERT] LOOKING AWAY FROM SCREEN (LEFT) | valence=-0.03 (Neutral) | suspicion=72/100 | snapshot=snapshots/looking_away_20261021_140324_512.jpg
-[14:03:25] [OK]    Telegram alert delivered: LOOKING AWAY FROM SCREEN (LEFT)
+```bash
+python main.py --camera 1
+python main.py --backend tasks
+python main.py --no-window --backend tasks
 ```
 
-The Telegram message contains: timestamp, violation type, valence, suspicion score and the annotated snapshot.
+## Detection and Analysis
 
-*Left / Right are from the candidate's own point of view.* If they feel reversed on your setup, set `MIRROR_DIRECTIONS=true` in `.env`.
+The system analyzes facial landmarks and head movement in real time. It can detect:
 
----
+- no face detected
+- multiple faces detected
+- looking away from the screen
+- suspicious head movement
+- distracted or abnormal behaviour
+- negative or unusual emotional valence
 
-## How the scores are computed (be transparent with the judges)
+These signals are compared against a per-user baseline established during calibration.
 
-* **Head pose** - six facial landmarks are matched to a generic 3-D face model with `cv2.solvePnP`; yaw / pitch are measured **relative to your calibrated neutral pose**, so a laptop camera that sits below eye level does not cause false alarms. The calibration can never be "hidden" off-axis (baseline clipped to +/-20 deg).
-* **Valence** - a geometric heuristic: mouth-width increase (smile) raises it, inner-brow narrowing (frown) and raised brows lower it, all relative to the candidate's own baseline, then smoothed. It is **not a trained emotion classifier**.
-* **Suspicion (0-100)** - weighted blend of gaze deviation, how long the candidate has been looking away, rapid head swings, mouth movement (talking), long eye closure and negative valence. No face = 60-100, multiple faces = 95. **Focus = 100 - suspicion.**
-* **Suspicious Movement** status - rapid left-right head swings (> 45 deg range within 2 s) or sustained mouth movement. Set `ALERT_ON_SUSPICIOUS_MOVEMENT=true` to also send Telegram alerts for it.
+## Configuration
 
-### Detection back-ends (chosen automatically)
+The application can be configured using `.env`. Available options include:
 
-| Back-end | When it is used | Notes |
-|---|---|---|
-| MediaPipe **FaceMesh** (legacy `solutions` API) | older MediaPipe releases | no download needed |
-| MediaPipe **FaceLandmarker** (Tasks API) | current MediaPipe releases | downloads a ~4 MB model to `models/` on first run (internet needed once) |
-| OpenCV **Haar cascade** | last-resort fallback | face count + presence + coarse gaze only; no valence |
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+ALERT_COOLDOWN_SECONDS=5
+LOOK_AWAY_SECONDS=2
+CAMERA_INDEX=0
+SHOW_WINDOW=true
+FACE_BACKEND=auto
+FLIP_FRAME=false
+MIRROR_DIRECTIONS=false
+YAW_THRESHOLD_DEG=25
+PITCH_THRESHOLD_DEG=18
+ALERT_ON_SUSPICIOUS_MOVEMENT=false
+```
 
-Force one with `--backend` or `FACE_BACKEND=` in `.env`.
+## Troubleshooting
 
-### Verified runtime
+### Camera not opening
 
-The repository has been verified with Python 3.12 using the current MediaPipe Tasks backend. With `--backend auto`, the application tries the available backends and normally selects **MediaPipe FaceLandmarker (Tasks API)**. On the first run it downloads `models/face_landmarker.task`; subsequent runs use the local model.
-
-The legacy MediaPipe `solutions` backend may not be available with newer MediaPipe releases. This is expected: use `--backend auto` or `--backend tasks` for current installations. The application still logs violations locally when Telegram is not configured.
-
-The live pipeline requires a working webcam. If the default camera cannot be opened, try another index:
+- Close apps using the camera, such as Zoom or Teams.
+- Try a different camera index:
 
 ```bash
 python main.py --camera 1
 ```
 
-For a terminal-only run without opening a video window:
+- Check your system privacy settings to allow camera access for Terminal or VS Code.
+
+### Mediapipe issues
+
+Use Python 3.9 to 3.12.
 
 ```bash
-python main.py --no-window --backend tasks
+python main.py --backend tasks
 ```
 
-This mode still requires a webcam; `--no-window` only disables the display window.
+If the model file is missing, download it once and place it in the `models/` folder, or allow the app to download it automatically if network access is available.
 
----
+### Telegram errors
 
-## Configuration
+- `HTTP 401`: invalid token
+- `HTTP 400/403`: invalid chat ID or bot not interacted with yet
 
-Everything can be overridden in `.env` (see `.env.example`):
+### Head pose seems reversed
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | - | bot credentials |
-| `ALERT_COOLDOWN_SECONDS` | 5 | minimum gap between alerts of the same type |
-| `LOOK_AWAY_SECONDS` | 2 | look-away time before it counts as a violation |
-| `YAW_THRESHOLD_DEG` / `PITCH_THRESHOLD_DEG` | 25 / 18 | how far the head may turn left-right / up-down |
-| `NO_FACE_SECONDS` / `MULTI_FACE_SECONDS` | 1 / 0.5 | debounce before those violations fire |
-| `CAMERA_INDEX` | 0 | which webcam |
-| `SHOW_WINDOW` | true | show the annotated video window |
-| `FLIP_FRAME` | false | set true only if your camera image is mirrored |
-| `MIRROR_DIRECTIONS` | false | swap LEFT/RIGHT labels |
-| `FACE_BACKEND` | auto | `auto`, `legacy`, `tasks`, `haar` |
-| `ALERT_ON_SUSPICIOUS_MOVEMENT` | false | also alert on suspicious movement |
+Set this in `.env`:
 
-Violation snapshots are saved in `snapshots/` (git-ignored).
+```env
+FLIP_FRAME=true
+```
 
----
+or
 
+```env
+MIRROR_DIRECTIONS=true
+```
 
-## Troubleshooting
+## Responsible Use
 
-| Problem | Fix |
-|---|---|
-| `Cannot open camera index 0` | close Zoom/Teams/browser tabs using the camera, try `--camera 1`, allow camera access for your terminal in OS privacy settings |
-| `No matching distribution found for mediapipe` | use Python 3.9 - 3.12 |
-| `Back-end 'tasks' is not available: model file not available` | no internet on first run - download `face_landmarker.task` from the MediaPipe model page once and place it in `models/` (or set `FACE_LANDMARKER_MODEL_PATH`) |
-| `Back-end 'legacy' is not available: module 'mediapipe' has no attribute 'solutions'` | use the current Tasks backend with `python main.py --backend tasks` or leave the backend set to `auto` |
-| `No face detection back-end could be started` | use `--backend auto` or `--backend tasks`; confirm dependencies were installed with `pip install -r requirements.txt` |
-| Head pose looks wrong / always "away" | your camera image may be mirrored - set `FLIP_FRAME=true`; press `c` to recalibrate |
-| Too many false "looking away" alerts | raise `YAW_THRESHOLD_DEG` / `PITCH_THRESHOLD_DEG` or `LOOK_AWAY_SECONDS` |
-| Telegram `rejected (HTTP 401)` | wrong token - recreate it with @BotFather |
-| Telegram `rejected (HTTP 400/403)` | wrong chat id, or you have not sent your bot a first message |
-| `cv2` import conflicts after installing | `pip uninstall -y opencv-python opencv-contrib-python` then `pip install opencv-python` |
+This tool is designed for monitoring and assistance, not as a fully automatic decision-maker. It is useful for flagging possible violations for human review, but false positives can occur due to lighting, glasses, camera angle, or unusual posture. Treat alerts as signals requiring human interpretation.
 
----
+## Verified Runtime
 
-## Responsible-use note
+This repository has been verified with Python 3.12 using the current MediaPipe Tasks backend. The project is designed to work best with the default `auto` backend mode.
 
-Automated proctoring produces **false positives** (poor lighting, glasses, a camera at an odd angle) and its emotion/valence estimate is heuristic. Treat alerts as *flags for a human reviewer*, never as proof of misconduct, and always obtain the candidate's informed consent before recording or analysing their video.
+## License
 
-Built for **Hackathon Problem Statement ID 102 - AI Proctoring & Behaviour Analysis System.**
+This project is licensed under the MIT License. See `LICENSE` for details.
 
+## Built For
+
+Hackathon Problem Statement ID 102 - AI Proctoring & Behaviour Analysis System
