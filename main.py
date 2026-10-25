@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import getpass
 import math
 import os
 import queue
@@ -936,6 +937,11 @@ def draw_overlay(frame: np.ndarray, a: Analysis, faces: List[FaceFeatures]) -> n
 
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cv2.putText(out, stamp, (max(5, w - 185), 20), FONT, 0.5, WHITE, 1, cv2.LINE_AA)
+    # Persistent author watermark on the live preview and any saved alert snapshots.
+    watermark = "MAYANK"
+    (wm_w, wm_h), _ = cv2.getTextSize(watermark, cv2.FONT_HERSHEY_DUPLEX, 0.75, 2)
+    cv2.putText(out, watermark, (max(8, w - wm_w - 14), max(24, h - 14)),
+                cv2.FONT_HERSHEY_DUPLEX, 0.75, (190, 190, 190), 2, cv2.LINE_AA)
 
     if a.violations:
         banner_h = 12 + 24 * len(a.violations)
@@ -1011,6 +1017,7 @@ class ProctoringApp:
 
     def _banner(self) -> None:
         self.log.raw("=" * 78, Fore.CYAN)
+        self.log.raw("  M A Y A N K", Fore.WHITE + Style.BRIGHT)
         self.log.raw("  AI PROCTORING & BEHAVIOUR ANALYSIS SYSTEM  -  Hackathon Problem ID 102", Fore.CYAN + Style.BRIGHT)
         self.log.raw("=" * 78, Fore.CYAN)
 
@@ -1115,17 +1122,84 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="face detection back-end (default: auto)",
     )
     parser.add_argument("--test-telegram", action="store_true", help="send a test message to Telegram and exit")
+    parser.add_argument("--non-interactive", action="store_true", help="skip Telegram setup prompt (use .env settings only)")
     return parser.parse_args(argv)
+
+
+def _save_telegram_settings(token: str, chat_id: str) -> None:
+    """Persist credentials in the git-ignored .env file, preserving other settings."""
+    env_path = config.BASE_DIR / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    updates = {"TELEGRAM_BOT_TOKEN": token, "TELEGRAM_CHAT_ID": chat_id}
+    found = set()
+    result = []
+    for line in lines:
+        key = line.split("=", 1)[0].strip() if "=" in line and not line.lstrip().startswith("#") else ""
+        if key in updates:
+            result.append(f"{key}={updates[key]}")
+            found.add(key)
+        else:
+            result.append(line)
+    for key, value in updates.items():
+        if key not in found:
+            result.append(f"{key}={value}")
+    env_path.write_text("\n".join(result).rstrip() + "\n", encoding="utf-8")
+    try:
+        os.chmod(env_path, 0o600)
+    except OSError:
+        pass
+
+
+def _telegram_startup_choice(logger: TerminalLogger, token: str, chat_id: str) -> Tuple[str, str]:
+    """Offer an explicit Telegram setup/skip choice before camera processing starts."""
+    print("\nTelegram alerts can send violation notifications and camera snapshots over the internet.")
+    print("Choose Skip to keep all processing and alerts local; you can configure Telegram later in .env.\n")
+    if token and chat_id:
+        choice = input("Use saved Telegram settings and send a connection test? [Y]es / [S]kip: ").strip().lower()
+        if choice not in {"", "y", "yes"}:
+            return "", ""
+    else:
+        choice = input("Set up Telegram alerts now? [Y]es / [S]kip (default Skip): ").strip().lower()
+        if choice not in {"y", "yes"}:
+            logger.info("Telegram skipped; the session will run locally without sending data.")
+            return "", ""
+        print("\nBot token is hidden while typing. Never share it or commit it to GitHub.")
+        token = getpass.getpass("Paste bot token from @BotFather: ").strip()
+        chat_id = input("Telegram chat ID (get it from getUpdates after messaging your bot): ").strip()
+        if not token or not chat_id:
+            logger.warn("Missing token/chat ID; continuing in local-only mode.")
+            return "", ""
+    test_notifier = TelegramNotifier(token, chat_id, logger)
+    if not test_notifier.send_test():
+        logger.warn("Telegram test failed; continuing locally. Check token/chat ID and internet access.")
+        return "", ""
+    _save_telegram_settings(token, chat_id)
+    logger.ok("Telegram settings saved to private .env (git-ignored).")
+    return token, chat_id
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     colorama_init()
     args = parse_args(argv)
     logger = TerminalLogger(config.LOG_INTERVAL_SECONDS)
-    notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, logger)
 
     if args.test_telegram:
+        notifier = TelegramNotifier(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, logger)
         return 0 if notifier.send_test() else 1
+
+    token, chat_id = config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID
+    if not args.non_interactive and sys.stdin.isatty():
+        print("\n" + "=" * 72)
+        print("""
+███╗   ███╗ █████╗ ██╗   ██╗ █████╗ ███╗   ██╗██╗  ██╗
+████╗ ████║██╔══██╗╚██╗ ██╔╝██╔══██╗████╗  ██║██║ ██╔╝
+██╔████╔██║███████║ ╚████╔╝ ███████║██╔██╗ ██║█████╔╝
+██║╚██╔╝██║██╔══██║  ╚██╔╝  ██╔══██║██║╚██╗██║██╔═██╗
+██║ ╚═╝ ██║██║  ██║   ██║   ██║  ██║██║ ╚████║██║  ██╗
+╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝""")
+        print("=" * 72)
+        token, chat_id = _telegram_startup_choice(logger, token, chat_id)
+    notifier = TelegramNotifier(token, chat_id, logger)
 
     app = ProctoringApp(
         camera_index=args.camera,

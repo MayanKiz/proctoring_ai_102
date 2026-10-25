@@ -1,5 +1,7 @@
 # AI Proctoring & Behaviour Analysis System
 
+Created by Mayank. The application displays a prominent MAYANK startup banner and a persistent MAYANK watermark on the video and saved alert snapshots.
+
 This project is a real-time webcam proctoring and behaviour analysis tool built for hackathon problem statement ID 102. It monitors face presence, head pose, gaze direction, suspicious movement, and other behavioural indicators using a local webcam. When a violation is detected, it logs it in the terminal and can send an instant Telegram alert with a snapshot.
 
 It runs fully locally with Python and does not require any cloud-based processing.
@@ -109,7 +111,11 @@ On first run, the system calibrates for about 1 second. Look directly at the scr
 - `q` or `Esc` to quit
 - `Ctrl + C` to stop the program
 
+At startup, the program asks whether to enable Telegram. Choose **Skip** to run locally with no data sent over the internet. Choose **Yes** to enter your bot token and chat ID; the app sends a one-time test message before enabling violation alerts/snapshot delivery. Credentials are stored in the git-ignored `.env` file. Use `--non-interactive` to skip the prompt and use configured `.env` values only.
+
 ## Telegram Setup
+
+### Create a bot and get the chat ID
 
 1. Open Telegram and message `@BotFather`.
 2. Send `/newbot` and follow the prompts.
@@ -121,7 +127,7 @@ On first run, the system calibrates for about 1 second. Look directly at the scr
 https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
 ```
 
-6. Find the `chat` object and copy the `id` value.
+6. Find the `chat` object and copy the `id` value. If `result` is empty, send a message to your bot first and refresh the page.
 7. Add both values to your `.env` file:
 
 ```env
@@ -132,7 +138,7 @@ TELEGRAM_CHAT_ID=987654321
 ## Command Line Options
 
 ```bash
-python main.py [--camera N] [--no-window] [--backend auto|legacy|tasks|haar] [--test-telegram]
+python main.py [--camera N] [--no-window] [--backend auto|legacy|tasks|haar] [--test-telegram] [--non-interactive]
 ```
 
 Examples:
@@ -142,6 +148,16 @@ python main.py --camera 1
 python main.py --backend tasks
 python main.py --no-window --backend tasks
 ```
+
+## Use with Codex, ChatGPT, Claude, Gemini, or another coding assistant
+
+1. Open this repository in the coding tool (clone the GitHub repo or upload the project folder).
+2. Give the assistant a specific task, for example: “Review this project, explain the webcam pipeline, and add a configurable alert cooldown. Do not expose `.env` or the bot token.”
+3. Ask it to inspect `README.md`, `config.py`, and relevant sections of `main.py` before editing. Review the proposed diff and run `pip install -r requirements.txt` plus `python main.py --test-telegram` (after configuring `.env`) or your normal app checks.
+4. Keep credentials in local `.env` or the coding tool's secret manager. Never paste a live token into prompts, source code, issues, or commits. If a token is exposed, revoke it with `@BotFather` and create a replacement.
+5. For Codex/Claude Code or other terminal agents, clone the repo, install dependencies in a virtual environment, then start the tool from the project directory. For browser-based assistants, use their GitHub integration or upload a ZIP; do not grant broader GitHub permissions than needed.
+
+Assistants may make mistakes; inspect changes before accepting or pushing them. The app sends violation details and a webcam snapshot to Telegram only after you opt in and pass the Telegram connection test. Choose **Skip** for local-only operation.
 
 ## Detection and Analysis
 
