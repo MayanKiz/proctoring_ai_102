@@ -2,7 +2,7 @@
 
 Created by Mayank. The application displays a prominent MAYANK startup banner and a persistent MAYANK watermark on the video and saved alert snapshots.
 
-This project is a real-time webcam proctoring and behaviour analysis tool built for hackathon problem statement ID 102. It monitors face presence, head pose, gaze direction, suspicious movement, and other behavioural indicators using a local webcam. When a violation is detected, it logs it in the terminal and can send an instant Telegram alert with a snapshot.
+This project is a real-time webcam proctoring and behaviour analysis tool built for hackathon problem statement ID 102. It monitors face presence, head pose, gaze direction, suspicious movement, and overall behaviour using local computer vision pipelines.
 
 It runs fully locally with Python and does not require any cloud-based processing.
 
@@ -111,7 +111,7 @@ On first run, the system calibrates for about 1 second. Look directly at the scr
 - `q` or `Esc` to quit
 - `Ctrl + C` to stop the program
 
-At startup, the program asks whether to enable Telegram. Choose **Skip** to run locally with no data sent over the internet. Choose **Yes** to enter your bot token and chat ID; the app sends a one-time test message before enabling violation alerts/snapshot delivery. Credentials are stored in the git-ignored `.env` file. Use `--non-interactive` to skip the prompt and use configured `.env` values only.
+At startup, the program asks whether to enable Telegram. Choose **Skip** to run locally with no data sent over the internet. Choose **Yes** to enter your bot token and chat ID; the app sends a one-time test message and then continues monitoring.
 
 ## Telegram Setup
 
@@ -149,15 +149,110 @@ python main.py --backend tasks
 python main.py --no-window --backend tasks
 ```
 
+## AI Coding Assistant Setup (Cursor, Claude Code, Codex, and other IDEs)
+
+This project is easy to work on with AI coding tools such as Cursor, VS Code Copilot, Claude Code, Codex CLI, Gemini Code Assist, or similar terminal-based assistants.
+
+### Recommended workflow
+
+1. Open the repo in your AI IDE or terminal.
+2. Start from the project root (`proctoring_ai_102/`).
+3. Ask the AI to read `README.md`, `config.py`, and the relevant sections of `main.py` before making changes.
+4. Keep all secrets in your local `.env` file or the IDE secret manager. Never paste real Telegram tokens into chat prompts or commits.
+5. Ask the assistant to show a diff before applying changes, then validate with the smallest relevant command.
+
+### Cursor / VS Code / other IDEs
+
+1. Open the project folder in Cursor or VS Code.
+2. Open the AI chat panel and attach the repo root.
+3. Use a prompt like:
+
+```text
+Review this repo, read README.md and config.py first, and explain the webcam pipeline before making changes.
+Implement the requested feature in a minimal and safe way.
+Do not expose or print TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID.
+Keep credentials in local .env only.
+Show the diff before applying the patch.
+```
+
+4. Run the project in a venv:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # macOS/Linux
+# or .venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python main.py --test-telegram
+```
+
+### Claude Code
+
+Install and run Claude Code in the project directory:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+cd proctoring_ai_102
+claude
+```
+
+Then use a prompt like:
+
+```text
+You are working in the repo root of an AI proctoring app.
+Read README.md, config.py, and relevant sections of main.py before editing.
+Explain the current workflow and then implement the requested feature.
+Do not expose .env values, Telegram tokens, or chat IDs in the output.
+Use the local .env file for secrets and keep the change minimal.
+Validate with the smallest relevant command and show me the diff.
+```
+
+### Codex CLI
+
+```bash
+npm install -g @openai/codex
+cd proctoring_ai_102
+codex
+```
+
+Then use a prompt like:
+
+```text
+Review this project, read the config and runtime flow, and make the requested change safely.
+Preserve local-only behavior and keep Telegram credentials in .env.
+Do not print secrets or token values.
+Run the relevant validation command after the edit and summarize the result.
+```
+
+### Generic prompt template
+
+Use this whenever you want the AI to work on the project safely:
+
+```text
+You are working inside the repo root.
+1. Read README.md, config.py, and relevant sections of main.py before editing.
+2. Explain the current behavior and identify the likely root cause or requested change.
+3. Make the smallest possible code change that solves the task.
+4. Keep all secrets in .env and never expose Telegram bot tokens or chat IDs.
+5. Validate using the smallest relevant command.
+6. Show the diff before finalizing.
+```
+
+### Good example tasks for an AI assistant
+
+- "Add a configurable alert cooldown to avoid repeated Telegram spam."
+- "Fix the default camera/backend selection logic and explain why it breaks on some systems."
+- "Improve the logging output and add a non-interactive mode for headless runs."
+- "Refactor the detection loop for readability without changing behavior."
+
 ## Use with Codex, ChatGPT, Claude, Gemini, or another coding assistant
 
 1. Open this repository in the coding tool (clone the GitHub repo or upload the project folder).
 2. Give the assistant a specific task, for example: “Review this project, explain the webcam pipeline, and add a configurable alert cooldown. Do not expose `.env` or the bot token.”
-3. Ask it to inspect `README.md`, `config.py`, and relevant sections of `main.py` before editing. Review the proposed diff and run `pip install -r requirements.txt` plus `python main.py --test-telegram` (after configuring `.env`) or your normal app checks.
-4. Keep credentials in local `.env` or the coding tool's secret manager. Never paste a live token into prompts, source code, issues, or commits. If a token is exposed, revoke it with `@BotFather` and create a replacement.
-5. For Codex/Claude Code or other terminal agents, clone the repo, install dependencies in a virtual environment, then start the tool from the project directory. For browser-based assistants, use their GitHub integration or upload a ZIP; do not grant broader GitHub permissions than needed.
+3. Ask it to inspect `README.md`, `config.py`, and relevant sections of `main.py` before editing. Review the proposed diff and run `pip install -r requirements.txt` plus `python main.py --test-telegram` if needed.
+4. Keep credentials in local `.env` or the coding tool's secret manager. Never paste a live token into prompts, source code, issues, or commits. If a token is exposed, revoke it with `@BotFather` and create a new one.
+5. For Codex/Claude Code or other terminal agents, clone the repo, install dependencies in a virtual environment, then start the tool from the project directory. For browser-based assistants, use their repo upload or workspace feature, but keep secrets out of the chat.
 
-Assistants may make mistakes; inspect changes before accepting or pushing them. The app sends violation details and a webcam snapshot to Telegram only after you opt in and pass the Telegram connection test. Choose **Skip** for local-only operation.
+Assistants may make mistakes; inspect changes before accepting or pushing them. The app sends violation details and a webcam snapshot to Telegram only after you opt in and pass the Telegram connection values in `.env`.
 
 ## Detection and Analysis
 
@@ -235,7 +330,7 @@ MIRROR_DIRECTIONS=true
 
 ## Responsible Use
 
-This tool is designed for monitoring and assistance, not as a fully automatic decision-maker. It is useful for flagging possible violations for human review, but false positives can occur due to lighting, glasses, camera angle, or unusual posture. Treat alerts as signals requiring human interpretation.
+This tool is designed for monitoring and assistance, not as a fully automatic decision-maker. It is useful for flagging possible violations for human review, but false positives can occur due to light conditions, camera quality, and user behavior. Use it responsibly and transparently.
 
 ## Verified Runtime
 
